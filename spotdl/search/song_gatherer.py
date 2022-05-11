@@ -25,6 +25,7 @@ def from_spotify_url(
     use_youtube: bool = False,
     lyrics_provider: str = None,
     playlist: dict = None,
+    path_template: str = None,
 ) -> SongObject:
     """
     Creates song object using spotfy url
@@ -79,13 +80,17 @@ def from_spotify_url(
             song_name, [raw_track_meta["artists"][0]["name"]]
         )
 
-    converted_file_path = Path(".", f"{converted_file_name}.{output_format}")
+    tempSong = SongObject(
+        raw_track_meta, raw_album_meta, raw_artist_meta, None, None, playlist
+    )
 
-    # Alternate file path.
-    alternate_file_path = Path(".", f"{filesystem_display_name}.{output_format}")
+    if path_template:
+        file_path = _parse_path_template(path_template, tempSong, output_format)
+    else:
+        file_path = _get_converted_file_path(tempSong, output_format)
 
     # if a song is already downloaded skip it
-    if converted_file_path.is_file() or alternate_file_path.is_file():
+    if file_path.is_file():
         print(f'Skipping "{converted_file_name}" as it\'s already downloaded')
         raise OSError(f"{converted_file_name} already downloaded")
 
@@ -209,6 +214,7 @@ def from_album(
                 use_youtube,
                 lyrics_provider,
                 None,
+                path_template,
             )
 
             if generate_m3u:
@@ -327,6 +333,7 @@ def from_playlist(
                 use_youtube,
                 lyrics_provider,
                 playlist,
+                path_template,
             )
 
             if generate_m3u:
@@ -342,9 +349,7 @@ def from_playlist(
             return None, None
         except OSError:
             if generate_m3u:
-                song_obj = SongObject(
-                    track["track"], {}, {}, None, "", playlist_response
-                )
+                song_obj = SongObject(track["track"], {}, {}, None, "", playlist)
                 if path_template:
                     file_path = _parse_path_template(
                         path_template, song_obj, output_format
@@ -509,7 +514,9 @@ def from_saved_tracks(
     output_format: str = None,
     use_youtube: bool = False,
     lyrics_provider: str = None,
+    generate_m3u: bool = False,
     threads: int = 1,
+    path_template: str = None,
 ) -> List[SongObject]:
     """
     Create and return list containing SongObject for every song that user has saved
@@ -549,22 +556,54 @@ def from_saved_tracks(
 
     def get_song(track):
         try:
-            return from_spotify_url(
+            song = from_spotify_url(
                 "https://open.spotify.com/track/" + track["track"]["id"],
                 output_format,
                 use_youtube,
                 lyrics_provider,
                 None,
+                path_template,
             )
-        except (LookupError, ValueError, OSError):
-            return None
+            if generate_m3u:
+                if path_template:
+                    file_path = _parse_path_template(path_template, song, output_format)
+                else:
+                    file_path = _get_converted_file_path(song, output_format)
+                return song, f"{file_path}\n"
+        except (LookupError, ValueError):
+            return None, None
+        except OSError:
+            if generate_m3u:
+                song_obj = SongObject(track["track"], {}, {}, None, "", None)
+                if path_template:
+                    file_path = _parse_path_template(
+                        path_template, song_obj, output_format
+                    )
+                else:
+                    file_path = _get_converted_file_path(song_obj, output_format)
+
+                return None, f"{file_path}\n"
+
+            return None, None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         results = executor.map(get_song, saved_tracks)
 
+    playlist_text = ""
     for result in results:
-        if result is not None and result.youtube_link is not None:
-            tracks.append(result)
+        if result[1] is not None:
+            playlist_text += result[1]
+
+        if result[0] is not None and result[0].youtube_link is not None:
+            tracks.append(result[0])
+
+    if saved_tracks_response and generate_m3u is True:
+        playlist_name = "Liked"
+        playlist_name = format_name(playlist_name)
+        playlist_file = Path(f"{playlist_name}.m3u")
+
+        with open(playlist_file, "w", encoding="utf-8") as file:
+            file.write(playlist_text)
 
     return tracks
 

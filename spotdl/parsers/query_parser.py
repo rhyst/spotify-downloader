@@ -121,7 +121,12 @@ def parse_request(
     elif request == "saved":
         print("Fetching Saved Songs...")
         song_list = song_gatherer.from_saved_tracks(
-            output_format, use_youtube, lyrics_provider, threads
+            output_format,
+            use_youtube,
+            lyrics_provider,
+            generate_m3u,
+            threads,
+            path_template,
         )
     else:
         print('Searching Spotify for song named "%s"...' % request)

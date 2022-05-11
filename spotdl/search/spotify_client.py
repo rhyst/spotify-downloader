@@ -20,7 +20,14 @@ class Singleton(type):
             )
         return cls._instance
 
-    def init(cls, client_id: str, client_secret: str, user_auth: bool) -> "Singleton":
+    def init(
+        cls,
+        client_id: str,
+        client_secret: str,
+        user_auth: bool,
+        auth_manager=None,
+        cache_path: str = ".spotdl-cache",
+    ) -> "Singleton":
         """
         `str` `client_id` : client id from your spotify account
 
@@ -37,25 +44,26 @@ class Singleton(type):
         if isinstance(cls._instance, cls):
             raise Exception("A spotify client has already been initialized")
 
-        credential_manager = None
-        cache_handler = CacheFileHandler(cache_path=".spotdl-cache")
+        credential_manager = auth_manager
+        if not credential_manager:
+            cache_handler = CacheFileHandler(cache_path)
 
-        # Use SpotifyOAuth as auth manager
-        if user_auth:
-            credential_manager = SpotifyOAuth(
-                client_id=client_id,
-                client_secret=client_secret,
-                redirect_uri="http://127.0.0.1:8080/",
-                scope="user-library-read",
-                cache_handler=cache_handler,
-            )
-        # Use SpotifyClientCredentials as auth manager
-        else:
-            credential_manager = SpotifyClientCredentials(
-                client_id=client_id,
-                client_secret=client_secret,
-                cache_handler=cache_handler,
-            )
+            # Use SpotifyOAuth as auth manager
+            if user_auth:
+                credential_manager = SpotifyOAuth(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    redirect_uri="http://127.0.0.1:8080/",
+                    scope="user-library-read",
+                    cache_handler=cache_handler,
+                )
+            # Use SpotifyClientCredentials as auth manager
+            else:
+                credential_manager = SpotifyClientCredentials(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    cache_handler=cache_handler,
+                )
 
         # Create instance
         cls._instance = super().__call__(

@@ -141,11 +141,6 @@ def _parse_path_template(path_template, song_object, output_format, short=False)
         ext=_sanitize_filename(output_format),
     )
 
-    if len(converted_file_name) > 250:
-        return _parse_path_template(
-            path_template, song_object, output_format, short=True
-        )
-
     converted_file_path = Path(converted_file_name)
 
     santitized_parts = []
